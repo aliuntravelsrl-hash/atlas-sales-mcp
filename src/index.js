@@ -47,7 +47,12 @@ async function readRequestBody(req) {
   const chunks = [];
   for await (const chunk of req) chunks.push(chunk);
   if (chunks.length === 0) return undefined;
-  return Buffer.concat(chunks);
+  const text = Buffer.concat(chunks).toString("utf8");
+  try {
+    return JSON.parse(text);
+  } catch {
+    return text;
+  }
 }
 
 function touch(record) {
