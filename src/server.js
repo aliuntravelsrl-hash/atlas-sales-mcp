@@ -6,6 +6,12 @@ const { registerRegistrarDeposito } = require("./tools/registrar_deposito");
 const { registerValidarComprobante } = require("./tools/validar_comprobante");
 const { registerObtenerGaleriaHotel } = require("./tools/obtener_galeria_hotel");
 const { registerGenerarPostCreativo } = require("./tools/generar_post_creativo");
+const { registerCalcularCotizacion } = require("./tools/calcular_cotizacion");
+const { registerAnalisisFinanciero } = require("./tools/analisis_financiero");
+const { registerCalcularPrecioPaquete } = require("./tools/calcular_precio_paquete");
+const { registerValidarOcupacionHabitacion } = require("./tools/validar_ocupacion_habitacion");
+const { registerBuscarOfertasMarketing } = require("./tools/buscar_ofertas_marketing");
+const { registerConsultarReserva } = require("./tools/consultar_reserva");
 
 function buildServer(config) {
   const server = new McpServer({
@@ -20,6 +26,12 @@ function buildServer(config) {
   registerValidarComprobante(server, config);
   registerObtenerGaleriaHotel(server, config);
   registerGenerarPostCreativo(server, config);
+  registerCalcularCotizacion(server, config);
+  registerAnalisisFinanciero(server, config);
+  registerCalcularPrecioPaquete(server, config);
+  registerValidarOcupacionHabitacion(server, config);
+  registerBuscarOfertasMarketing(server, config);
+  registerConsultarReserva(server, config);
 
   return server;
 }
