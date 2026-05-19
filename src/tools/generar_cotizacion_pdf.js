@@ -4,7 +4,7 @@ import { getSupabaseAuthHeaders, wrapError, wrapResult } from '../config.js'
 export function registrarGenerarCotizacionPdf(server, config) {
   server.tool(
     'generar_cotizacion_pdf',
-    'Genera cotización PDF y la envía al cliente por email via n8n/Gotenberg. Usar solo después de confirmar disponibilidad.',
+    'Genera cotización PDF via n8n/Gotenberg y retorna URL pública. Sin email. Usar solo después de confirmar disponibilidad.',
     {
       slug: z.string().describe('Slug del hotel'),
       nombre: z.string().describe('Nombre completo del cliente'),
@@ -19,7 +19,7 @@ export function registrarGenerarCotizacionPdf(server, config) {
     },
     async ({ slug, nombre, email, check_in, check_out, habitacion, regimen, pasajeros, precio_total, moneda }) => {
       try {
-        const response = await fetch(`${config.n8nWebhookBase}/webhook/wf-cotizacion-gotenberg-v2`, {
+        const response = await fetch(`${config.n8nWebhookBase}/webhook/aliun-cotizacion`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ slug, nombre, email, check_in, check_out, habitacion, regimen, pasajeros, precio_total, moneda })
