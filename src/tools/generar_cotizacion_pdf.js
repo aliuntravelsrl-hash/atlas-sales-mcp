@@ -4,7 +4,7 @@ import { getSupabaseAuthHeaders, wrapError, wrapResult } from '../config.js'
 export function registrarGenerarCotizacionPdf(server, config) {
   server.tool(
     'generar_cotizacion_pdf',
-    'Genera cotización PDF via n8n/Gotenberg y retorna URL pública. Sin email. Usar solo después de confirmar disponibilidad.',
+    'Genera cotización y retorna landing_url — página web branded con foto del hotel, detalle de la reserva, botón de descarga PDF y botón WhatsApp. SIEMPRE enviar landing_url al cliente, nunca pdf_url directamente.',
     {
       slug: z.string().describe('Slug del hotel'),
       nombre: z.string().describe('Nombre completo del cliente'),
@@ -25,7 +25,11 @@ export function registrarGenerarCotizacionPdf(server, config) {
           body: JSON.stringify({ slug, nombre, email, check_in, check_out, habitacion, regimen, pasajeros, precio_total, moneda })
         })
         const result = await response.json()
-        return wrapResult({ status: response.status, ...result })
+        return wrapResult({
+          landing_url: result.landing_url,
+          pdf_url: result.pdf_url,
+          id_cotizacion: result.id_cotizacion,
+        })
       } catch (error) {
         return wrapError(error)
       }
