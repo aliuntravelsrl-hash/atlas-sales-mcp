@@ -51,34 +51,8 @@ function getServer() {
   return server
 }
 
-// Session map: sessionId → { transport, server }
+// Session map for stateful clients: sessionId → { transport, server, lastSeen }
 const sessions = {}
-
-// Create a new session with server + transport
-async function createSession() {
-  const transport = new StreamableHTTPServerTransport({
-    sessionIdGenerator: () => randomUUID(),
-    onsessioninitialized: (sid) => {
-      console.log(`[MCP] Session initialized: ${sid}`)
-    }
-  })
-
-  // Clean up on close
-  transport.onclose = () => {
-    const sid = transport.sessionId
-    if (sid && sessions[sid]) {
-      console.log(`[MCP] Session closed: ${sid}`)
-      delete sessions[sid]
-    }
-  }
-
-  const server = getServer()
-  await server.connect(transport)
-
-  const sid = transport.sessionId
-  sessions[sid] = { transport, server, lastSeen: Date.now() }
-  return { sid, transport }
-}
 
 // Parse JSON body from incoming request
 function parseBody(req) {
@@ -93,6 +67,31 @@ function parseBody(req) {
   })
 }
 
+// Handle stateless requests (no session management).
+// Creates a one-shot server+transport that skips the MCP handshake.
+// The SDK's validateSession is bypassed because sessionIdGenerator is undefined.
+async function handleStatelessRequest(req, res, body) {
+  console.log(`[MCP] Stateless request: ${body?.method} (id=${body?.id})`)
+
+  // Create a SESSIONLESS transport — no sessionIdGenerator = no session validation
+  const transport = new StreamableHTTPServerTransport({
+    // No sessionIdGenerator → SDK skips all session checks
+  })
+
+  const server = getServer()
+  await server.connect(transport)
+
+  // Mark as initialized so the SDK accepts tool calls
+  transport._initialized = true
+
+  try {
+    await transport.handleRequest(req, res, body)
+  } finally {
+    // Clean up immediately — this was a one-shot connection
+    try { await transport.close() } catch {}
+  }
+}
+
 // HTTP server
 const serverHttp = http.createServer(async (req, res) => {
   // Health check
@@ -102,7 +101,7 @@ const serverHttp = http.createServer(async (req, res) => {
     return
   }
 
-  // SSE stream for GET /mcp (client reconnects to listen for events)
+  // SSE stream for GET /mcp (stateful clients only)
   if (req.method === 'GET' && req.url === '/mcp') {
     const sessionId = req.headers['mcp-session-id']
     if (!sessionId || !sessions[sessionId]) {
@@ -129,58 +128,43 @@ const serverHttp = http.createServer(async (req, res) => {
     try {
       const body = await parseBody(req)
 
-      // Existing session: reuse transport
+      // PATH 1: Existing stateful session — reuse transport
       if (sessionId && sessions[sessionId]) {
         sessions[sessionId].lastSeen = Date.now()
         await sessions[sessionId].transport.handleRequest(req, res, body)
         return
       }
 
-      // New session: explicit initialize request
+      // PATH 2: Standard MCP handshake — create stateful session
       if (!sessionId && isInitializeRequest(body)) {
-        const { sid, transport } = await createSession()
+        const sid = randomUUID()
+        const transport = new StreamableHTTPServerTransport({
+          sessionIdGenerator: () => sid,
+          onsessioninitialized: (s) => { console.log(`[MCP] Session initialized: ${s}`) }
+        })
+        transport.onclose = () => {
+          if (sessions[sid]) { console.log(`[MCP] Session closed: ${sid}`); delete sessions[sid] }
+        }
+        const server = getServer()
+        await server.connect(transport)
+        sessions[sid] = { transport, server, lastSeen: Date.now() }
         await transport.handleRequest(req, res, body)
         return
       }
 
-      // AUTO-INIT: No session + not an initialize request
-      // Client sent tools/call without handshake — auto-create session
+      // PATH 3: No session + not initialize = STATELESS mode
+      // Client (Atlas Tech, OpenClaw) sent tool call without handshake.
+      // Process it on a one-shot sessionless transport.
       if (!sessionId) {
-        console.log(`[MCP] Auto-init for request: ${body?.method || 'unknown'}`)
-        const { sid, transport } = await createSession()
-
-        // Send initialize response internally so the transport is ready
-        const initRequest = {
-          jsonrpc: '2.0',
-          id: 0,
-          method: 'initialize',
-          params: {
-            protocolVersion: '2025-03-26',
-            capabilities: {},
-            clientInfo: { name: 'auto-init-client', version: '1.0.0' }
-          }
-        }
-
-        // Process the initialize silently, then the actual request
-        // We use a fake response collector to absorb the init response
-        const fakeRes = {
-          writeHead: () => {},
-          end: () => {},
-          headersSent: false,
-          setHeader: () => {}
-        }
-        await transport.handleRequest(req, fakeRes, initRequest)
-
-        // Now process the real request with the real response
-        await transport.handleRequest(req, res, body)
+        await handleStatelessRequest(req, res, body)
         return
       }
 
-      // Session ID provided but not found — expired/invalid
+      // Session ID provided but not found — expired
       res.writeHead(400, { 'Content-Type': 'application/json' })
       res.end(JSON.stringify({
         jsonrpc: '2.0',
-        error: { code: -32000, message: 'Bad Request: Session expired or invalid. Please re-initialize.' },
+        error: { code: -32000, message: 'Session expired or invalid. Re-initialize.' },
         id: body?.id || null
       }))
     } catch (err) {
@@ -193,7 +177,7 @@ const serverHttp = http.createServer(async (req, res) => {
     return
   }
 
-  // Session termination: DELETE /mcp
+  // DELETE /mcp — session termination
   if (req.method === 'DELETE' && req.url === '/mcp') {
     const sessionId = req.headers['mcp-session-id']
     if (!sessionId || !sessions[sessionId]) {
@@ -217,7 +201,7 @@ const serverHttp = http.createServer(async (req, res) => {
   res.end('Not found')
 })
 
-// Session cleanup: expire sessions idle > 5 minutes
+// Session cleanup: expire stateful sessions idle > 5 minutes
 setInterval(() => {
   const now = Date.now()
   for (const sid in sessions) {
