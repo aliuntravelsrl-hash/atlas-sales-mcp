@@ -1,28 +1,47 @@
-const { z } = require("zod");
-const { apiPostJson, buildHeaders, wrapError, wrapResult } = require("../config");
+import { z } from 'zod'
+import { getSupabaseAuthHeaders, wrapError, wrapResult } from '../config.js'
 
-function registerObtenerGaleriaHotel(server, config) {
+export function registerObtenerGaleriaHotel(server, config) {
   server.tool(
-    "obtener_galeria_hotel",
-    "Obtiene galería visual y assets de un hotel para ventas y soporte comercial.",
+    'obtener_galeria_hotel',
+    'Obtiene galería de imágenes de un hotel directamente desde Supabase. Retorna URLs de gallery_data para compartir con el cliente.',
     {
-      hotel_slug: z.string().describe("Slug del hotel"),
-      limit: z.number().int().min(1).max(20).default(8).describe("Cantidad máxima de imágenes"),
-      include_captions: z.boolean().default(true).describe("Incluir captions si existen"),
+      hotel_slug: z.string().describe('Slug del hotel, ej: barcelo-bavaro-beach'),
+      limit: z.number().int().min(1).max(20).default(8).describe('Cantidad máxima de imágenes'),
     },
-    async (params) => {
+    async ({ hotel_slug, limit }) => {
       try {
-        const data = await apiPostJson(
-          `${config.n8nWebhookBase}${config.hotelGalleryWebhookPath}`,
-          params,
-          buildHeaders(config)
-        );
-        return wrapResult(data);
+        const headers = getSupabaseAuthHeaders(config)
+        const response = await fetch(
+          `${config.supabaseUrl}/rest/v1/hotels_master?slug=eq.${encodeURIComponent(hotel_slug)}&select=id,name,slug,zone,stars,gallery_data&is_active=eq.true`,
+          { method: 'GET', headers }
+        )
+        if (!response.ok) throw new Error(`HTTP ${response.status}: ${await response.text()}`)
+        const data = await response.json()
+        const hotel = Array.isArray(data) && data.length > 0 ? data[0] : null
+        if (!hotel) return wrapResult({ found: false, hotel_slug, images: [] })
+
+        const gallery = Array.isArray(hotel.gallery_data) ? hotel.gallery_data : []
+        const images = gallery
+          .slice(0, limit)
+          .map(img => ({
+            url: img.url || img.image || img.public_url || '',
+            title: img.title || '',
+            scope: img.scope || ''
+          }))
+          .filter(img => img.url)
+
+        return wrapResult({
+          found: true,
+          hotel_name: hotel.name,
+          zone: hotel.zone,
+          stars: hotel.stars,
+          total_available: gallery.length,
+          images
+        })
       } catch (error) {
-        return wrapError(error);
+        return wrapError(error)
       }
     }
-  );
+  )
 }
-
-module.exports = { registerObtenerGaleriaHotel };

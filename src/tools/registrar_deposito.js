@@ -1,30 +1,32 @@
-const { z } = require("zod");
-const { apiPostJson, buildHeaders, wrapError, wrapResult } = require("../config");
+import { z } from 'zod'
+import { wrapError, wrapResult } from '../config.js'
 
-function registerRegistrarDeposito(server, config) {
+export function registrarRegistrarDeposito(server, config) {
   server.tool(
-    "registrar_deposito",
-    "Registra un depósito recibido y emite Estado de Cuenta PDF al cliente. Solo Director debe usar esta tool.",
+    'registrar_deposito',
+    'Registra un depósito recibido y emite Estado de Cuenta PDF al cliente. Solo Director debe usar esta tool.',
     {
-      booking_reference: z.string().describe("Referencia reserva ALN-XXXXX"),
-      monto_deposito: z.number().positive().describe("Monto depósito USD"),
-      metodo_pago: z.string().default("transferencia").describe("transferencia | efectivo | tarjeta"),
-      email_cliente: z.string().describe("Email del cliente"),
-      notas: z.string().optional().describe("Notas del depósito"),
+      booking_reference: z.string().describe('Referencia reserva ALN-XXXXX'),
+      monto_deposito: z.number().describe('Monto depósito USD'),
+      email_cliente: z.string().describe('Email del cliente'),
+      metodo_pago: z.string().default('transferencia').describe('transferencia | efectivo | tarjeta'),
+      notas: z.string().optional().describe('Notas del depósito'),
     },
-    async (params) => {
+    async ({ booking_reference, monto_deposito, email_cliente, metodo_pago, notas }) => {
       try {
-        const data = await apiPostJson(
-          `${config.n8nWebhookBase}/webhook/aliun-deposito-aprobado`,
-          params,
-          buildHeaders(config)
-        );
-        return wrapResult(data);
+        const payload = { booking_reference, monto_deposito, email_cliente, metodo_pago }
+        if (notas) payload.notas = notas
+
+        const response = await fetch(`${config.n8nWebhookBase}/webhook/wf-registrar-deposito`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        })
+        const result = await response.json()
+        return wrapResult({ status: response.status, ...result })
       } catch (error) {
-        return wrapError(error);
+        return wrapError(error)
       }
     }
-  );
+  )
 }
-
-module.exports = { registerRegistrarDeposito };

@@ -1,31 +1,30 @@
-const { z } = require("zod");
-const { apiPostJson, buildHeaders, wrapError, wrapResult } = require("../config");
+import { z } from 'zod'
+import { getSupabaseAuthHeaders, wrapError, wrapResult } from '../config.js'
 
-function registerGenerarPostCreativo(server, config) {
+export function registrarGenerarPostCreativo(server, config) {
   server.tool(
-    "generar_post_creativo",
-    "Genera copy/post creativo de marketing para un hotel, oferta o campaña puntual.",
+    'generar_post_creativo',
+    'Genera caption, hashtags, historia (3 slides) y mensaje WhatsApp broadcast para un hotel. Usa n8n + Gemini.',
     {
-      hotel_slug: z.string().optional().describe("Slug del hotel si aplica"),
-      offer_title: z.string().optional().describe("Título de la oferta"),
-      audience: z.string().default("familias").describe("Audiencia objetivo"),
-      channel: z.string().default("instagram").describe("Canal destino"),
-      tone: z.string().default("premium-cercano").describe("Tono del copy"),
-      cta: z.string().optional().describe("Call to action deseado"),
+      hotel_slug: z.string().describe('Slug del hotel'),
+      channel: z.string().default('instagram').describe('Canal destino: instagram, whatsapp, facebook'),
+      offer_id: z.string().optional().describe('ID de oferta si aplica'),
     },
-    async (params) => {
+    async ({ hotel_slug, channel, offer_id }) => {
       try {
-        const data = await apiPostJson(
-          `${config.n8nWebhookBase}${config.postCreativoWebhookPath}`,
-          params,
-          buildHeaders(config)
-        );
-        return wrapResult(data);
+        const payload = { hotel_slug, channel }
+        if (offer_id) payload.offer_id = offer_id
+
+        const response = await fetch(`${config.n8nWebhookBase}/webhook/mcp-generar-post-creativo`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        })
+        const result = await response.json()
+        return wrapResult({ status: response.status, ...result })
       } catch (error) {
-        return wrapError(error);
+        return wrapError(error)
       }
     }
-  );
+  )
 }
-
-module.exports = { registerGenerarPostCreativo };
