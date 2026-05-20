@@ -31,7 +31,7 @@ import { registrarRegistrarDeposito } from './tools/registrar_deposito.js'
 function getServer() {
   const server = new McpServer({
     name: 'atlas-sales-tools',
-    version: '1.3.0'
+    version: '1.3.1'
   })
 
   registerConsultarDisponibilidad(server, config)
@@ -97,7 +97,7 @@ const serverHttp = http.createServer(async (req, res) => {
   // Health check
   if (req.method === 'GET' && req.url === '/health') {
     res.writeHead(200, { 'Content-Type': 'application/json' })
-    res.end(JSON.stringify({ status: 'up', server: 'atlas-sales-tools', version: '1.3.0', activeSessions: Object.keys(sessions).length }))
+    res.end(JSON.stringify({ status: 'up', server: 'atlas-sales-tools', version: '1.3.1', activeSessions: Object.keys(sessions).length }))
     return
   }
 
@@ -224,5 +224,5 @@ process.on('SIGINT', async () => {
 })
 
 serverHttp.listen(config.port, () => {
-  console.log(`[ATLAS-SALES-MCP] v1.3.0 on :${config.port}`)
+  console.log(`[ATLAS-SALES-MCP] v1.3.1 on :${config.port}`)
 })
