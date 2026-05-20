@@ -26,6 +26,12 @@ import { registrarValidarOcupacionHabitacion } from './tools/validar_ocupacion_h
 import { registrarBuscarOfertasMarketing } from './tools/buscar_ofertas_marketing.js'
 import { registrarConsultarReserva } from './tools/consultar_reserva.js'
 import { registrarRegistrarDeposito } from './tools/registrar_deposito.js'
+// CRM Pipeline Tools
+import { registerRegistrarLead } from './tools/registrar_lead.js'
+import { registerAvanzarPipeline } from './tools/avanzar_pipeline.js'
+import { registerRegistrarActividad } from './tools/registrar_actividad.js'
+import { registerCrearDeal } from './tools/crear_deal.js'
+import { registerConsultarPipeline } from './tools/consultar_pipeline.js'
 
 // Factory: creates a fresh McpServer with all tools registered
 function getServer() {
@@ -47,6 +53,13 @@ function getServer() {
   registrarBuscarOfertasMarketing(server, config)
   registrarConsultarReserva(server, config)
   registrarRegistrarDeposito(server, config)
+
+  // CRM Pipeline Tools
+  registerRegistrarLead(server, config)
+  registerAvanzarPipeline(server, config)
+  registerRegistrarActividad(server, config)
+  registerCrearDeal(server, config)
+  registerConsultarPipeline(server, config)
 
   return server
 }
