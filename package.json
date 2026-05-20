@@ -1,6 +1,6 @@
 {
   "name": "atlas-sales-mcp",
-  "version": "1.1.0",
+  "version": "1.1.1",
   "description": "ATLAS Sales Tools MCP Server — Aliun Travel SRL",
   "main": "src/index.js",
   "scripts": {
