@@ -17,7 +17,7 @@ export function registrarValidarComprobante(server, config) {
         if (descripcion) payload.descripcion = descripcion
         if (imagen_url) payload.imagen_url = imagen_url
 
-        const response = await fetch(`${config.n8nWebhookBase}/webhook/wf-deposito-aprobacion-v1/validate`, {
+        const response = await fetch(`${config.n8nWebhookBase}/webhook/validar-comprobante`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(payload)

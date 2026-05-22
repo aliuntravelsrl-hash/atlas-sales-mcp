@@ -17,7 +17,7 @@ export function registrarRegistrarDeposito(server, config) {
         const payload = { booking_reference, monto_deposito, email_cliente, metodo_pago }
         if (notas) payload.notas = notas
 
-        const response = await fetch(`${config.n8nWebhookBase}/webhook/wf-registrar-deposito`, {
+        const response = await fetch(`${config.n8nWebhookBase}/webhook/registrar-interes`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(payload)
