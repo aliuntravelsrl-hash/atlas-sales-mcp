@@ -16,7 +16,7 @@ export function registerConsultarDisponibilidad(server, config) {
       try {
         const data = await apiPostJson(
           `${config.supabaseUrl}/rest/v1/rpc/consultar_disponibilidad`,
-          { slug, check_in, check_out, adults, children },
+          { p_hotel_slug: slug, p_check_in: check_in, p_check_out: check_out, p_adults: adults, p_children: children },
           getSupabaseAuthHeaders(config)
         )
         return wrapResult(data)
