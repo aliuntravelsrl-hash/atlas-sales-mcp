@@ -14,7 +14,7 @@ export function registrarBuscarOfertasMarketing(server, config) {
       try {
         const data = await apiPostJson(
           `${config.supabaseUrl}/rest/v1/rpc/buscar_ofertas_marketing`,
-          { hotel_slug, offer_type, limit },
+          { hotel_slug, offer_type, p_limit: limit },
           getSupabaseAuthHeaders(config)
         )
         return wrapResult(data)
