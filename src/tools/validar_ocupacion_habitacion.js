@@ -15,7 +15,7 @@ export function registrarValidarOcupacionHabitacion(server, config) {
       try {
         const data = await apiPostJson(
           `${config.supabaseUrl}/rest/v1/rpc/validar_ocupacion_habitacion`,
-          { hotel_id, room_type, adultos, ninos },
+          { p_hotel_id: hotel_id, p_room_type: room_type, p_adultos: adultos, p_ninos: ninos },
           getSupabaseAuthHeaders(config)
         )
         return wrapResult(data)
