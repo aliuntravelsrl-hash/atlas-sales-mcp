@@ -18,7 +18,7 @@ export function registrarCalcularPrecioPaquete(server, config) {
       try {
         const data = await apiPostJson(
           `${config.supabaseUrl}/rest/v1/rpc/calcular_precio_paquete`,
-          { p_hotel_id: hotel_id, p_noches: noches, p_adultos: adultos, p_ninos: ninos, p_tasa_venta: tasa_venta, p_es_proveedor_local_dop: es_proveedor_local_dop, p_modo_productivo: modo_productivo },
+          { hotel_id, noches, adultos, ninos, tasa_venta, es_proveedor_local_dop, modo_productivo },
           getSupabaseAuthHeaders(config)
         )
         return wrapResult(data)
