@@ -41,12 +41,14 @@ import { registerAvanzarPipeline } from './tools/avanzar_pipeline.js'
 import { registerRegistrarActividad } from './tools/registrar_actividad.js'
 import { registerCrearDeal } from './tools/crear_deal.js'
 import { registerConsultarPipeline } from './tools/consultar_pipeline.js'
+// Mission Control / Analytics Tools
+import { registrarStalePayments } from './tools/stale_payments.js'
 
 // Factory: creates a fresh McpServer with all tools registered
 function getServer() {
   const server = new McpServer({
     name: 'atlas-sales-tools',
-    version: '1.3.1'
+    version: '1.4.0'
   })
 
   registerConsultarDisponibilidad(server, config)
@@ -69,6 +71,9 @@ function getServer() {
   registerRegistrarActividad(server, config)
   registerCrearDeal(server, config)
   registerConsultarPipeline(server, config)
+
+  // Mission Control / Analytics Tools
+  registrarStalePayments(server, config)
 
   return server
 }
@@ -137,7 +142,7 @@ const serverHttp = http.createServer(async (req, res) => {
   // Health check
   if (req.method === 'GET' && req.url === '/health') {
     res.writeHead(200, { 'Content-Type': 'application/json' })
-    res.end(JSON.stringify({ status: 'up', server: 'atlas-sales-tools', version: '1.3.1', activeSessions: Object.keys(sessions).length }))
+    res.end(JSON.stringify({ status: 'up', server: 'atlas-sales-tools', version: '1.4.0', activeSessions: Object.keys(sessions).length }))
     return
   }
 
@@ -267,5 +272,5 @@ process.on('SIGINT', async () => {
 })
 
 serverHttp.listen(config.port, () => {
-  console.log(`[ATLAS-SALES-MCP] v1.3.1 on :${config.port}`)
+  console.log(`[ATLAS-SALES-MCP] v1.4.0 on :${config.port}`)
 })
