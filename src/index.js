@@ -13,8 +13,6 @@ const config = {
   n8nWebhookBase: process.env.N8N_WEBHOOK_BASE || 'https://n8n-n8n.xaruuo.easypanel.host',
   // Secreto compartido para firmar webhooks a n8n (opt-in).
   n8nWebhookSecret: process.env.N8N_WEBHOOK_SECRET || '',
-  // Path del webhook de registrar_deposito (configurable).
-  registrarDepositoWebhookPath: process.env.REGISTRAR_DEPOSITO_WEBHOOK_PATH || '/webhook/registrar-interes',
   // Token de auth del endpoint /mcp (opt-in): si está vacío el endpoint
   // queda abierto como hoy; si se define, exige header X-MCP-Auth.
   mcpAuthToken: process.env.MCP_AUTH_TOKEN || '',
