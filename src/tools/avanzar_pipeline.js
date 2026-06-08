@@ -14,7 +14,7 @@ export function registerAvanzarPipeline(server, config) {
       try {
         const response = await fetch(`${config.supabaseUrl}/rest/v1/rpc/avanzar_pipeline`, {
           method: 'POST',
-          headers: getSupabaseAuthHeaders(config),
+          headers: getSupabaseAuthHeaders(config, { write: true }),
           body: JSON.stringify({ p_lead_id: lead_id, p_new_stage: new_stage, p_actor: actor })
         });
         if (!response.ok) {

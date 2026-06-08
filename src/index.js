@@ -8,7 +8,16 @@ import http from 'http'
 const config = {
   supabaseUrl: process.env.SUPABASE_URL || 'https://oyihiyivdhfxpyiwnmqk.supabase.co',
   supabaseAnonKey: process.env.SUPABASE_ANON_KEY || '',
+  // Service-role key opt-in: solo se usa para escrituras si está presente.
+  supabaseServiceRoleKey: process.env.SUPABASE_SERVICE_ROLE_KEY || '',
   n8nWebhookBase: process.env.N8N_WEBHOOK_BASE || 'https://n8n-n8n.xaruuo.easypanel.host',
+  // Secreto compartido para firmar webhooks a n8n (opt-in).
+  n8nWebhookSecret: process.env.N8N_WEBHOOK_SECRET || '',
+  // Token de auth del endpoint /mcp (opt-in): si está vacío el endpoint
+  // queda abierto como hoy; si se define, exige header X-MCP-Auth.
+  mcpAuthToken: process.env.MCP_AUTH_TOKEN || '',
+  // TTL de sesiones stateful en ms (default 30 min).
+  sessionTtlMs: parseInt(process.env.SESSION_TTL_MS || '1800000', 10),
   port: parseInt(process.env.PORT || '3000', 10),
 }
 
@@ -32,12 +41,14 @@ import { registerAvanzarPipeline } from './tools/avanzar_pipeline.js'
 import { registerRegistrarActividad } from './tools/registrar_actividad.js'
 import { registerCrearDeal } from './tools/crear_deal.js'
 import { registerConsultarPipeline } from './tools/consultar_pipeline.js'
+// Mission Control / Analytics Tools
+import { registrarStalePayments } from './tools/stale_payments.js'
 
 // Factory: creates a fresh McpServer with all tools registered
 function getServer() {
   const server = new McpServer({
     name: 'atlas-sales-tools',
-    version: '1.3.1'
+    version: '1.4.0'
   })
 
   registerConsultarDisponibilidad(server, config)
@@ -61,6 +72,9 @@ function getServer() {
   registerCrearDeal(server, config)
   registerConsultarPipeline(server, config)
 
+  // Mission Control / Analytics Tools
+  registrarStalePayments(server, config)
+
   return server
 }
 
@@ -78,6 +92,24 @@ function parseBody(req) {
     })
     req.on('error', reject)
   })
+}
+
+// Auth gate opt-in para /mcp.
+// Si config.mcpAuthToken está vacío → endpoint abierto (comportamiento
+// actual, cero downtime). Si está definido → exige header X-MCP-Auth
+// con el token. Devuelve true si la request está autorizada.
+function isAuthorized(req) {
+  if (!config.mcpAuthToken) return true
+  const provided = req.headers['x-mcp-auth'] || req.headers['authorization']
+  if (!provided) return false
+  // Acepta el token directo o como "Bearer <token>".
+  const token = provided.startsWith('Bearer ') ? provided.slice(7) : provided
+  return token === config.mcpAuthToken
+}
+
+function sendUnauthorized(res, id = null) {
+  res.writeHead(401, { 'Content-Type': 'application/json' })
+  res.end(JSON.stringify({ jsonrpc: '2.0', error: { code: -32001, message: 'Unauthorized: invalid or missing X-MCP-Auth' }, id }))
 }
 
 // Handle stateless requests (no session management).
@@ -110,12 +142,13 @@ const serverHttp = http.createServer(async (req, res) => {
   // Health check
   if (req.method === 'GET' && req.url === '/health') {
     res.writeHead(200, { 'Content-Type': 'application/json' })
-    res.end(JSON.stringify({ status: 'up', server: 'atlas-sales-tools', version: '1.3.1', activeSessions: Object.keys(sessions).length }))
+    res.end(JSON.stringify({ status: 'up', server: 'atlas-sales-tools', version: '1.4.0', activeSessions: Object.keys(sessions).length }))
     return
   }
 
   // SSE stream for GET /mcp (stateful clients only)
   if (req.method === 'GET' && req.url === '/mcp') {
+    if (!isAuthorized(req)) { sendUnauthorized(res); return }
     const sessionId = req.headers['mcp-session-id']
     if (!sessionId || !sessions[sessionId]) {
       res.writeHead(400, { 'Content-Type': 'application/json' })
@@ -136,6 +169,7 @@ const serverHttp = http.createServer(async (req, res) => {
 
   // MCP POST endpoint
   if (req.method === 'POST' && req.url === '/mcp') {
+    if (!isAuthorized(req)) { sendUnauthorized(res); return }
     const sessionId = req.headers['mcp-session-id']
 
     try {
@@ -192,6 +226,7 @@ const serverHttp = http.createServer(async (req, res) => {
 
   // DELETE /mcp — session termination
   if (req.method === 'DELETE' && req.url === '/mcp') {
+    if (!isAuthorized(req)) { sendUnauthorized(res); return }
     const sessionId = req.headers['mcp-session-id']
     if (!sessionId || !sessions[sessionId]) {
       res.writeHead(400, { 'Content-Type': 'application/json' })
@@ -214,11 +249,11 @@ const serverHttp = http.createServer(async (req, res) => {
   res.end('Not found')
 })
 
-// Session cleanup: expire stateful sessions idle > 5 minutes
+// Session cleanup: expire stateful sessions idle > SESSION_TTL_MS (default 30 min)
 setInterval(() => {
   const now = Date.now()
   for (const sid in sessions) {
-    if (now - sessions[sid].lastSeen > 300_000) {
+    if (now - sessions[sid].lastSeen > config.sessionTtlMs) {
       console.log(`[MCP] Session expired: ${sid}`)
       try { sessions[sid].transport.close() } catch {}
       delete sessions[sid]
@@ -237,5 +272,5 @@ process.on('SIGINT', async () => {
 })
 
 serverHttp.listen(config.port, () => {
-  console.log(`[ATLAS-SALES-MCP] v1.3.1 on :${config.port}`)
+  console.log(`[ATLAS-SALES-MCP] v1.4.0 on :${config.port}`)
 })

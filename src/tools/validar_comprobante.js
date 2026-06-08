@@ -1,29 +1,31 @@
 import { z } from 'zod'
-import { wrapError, wrapResult } from '../config.js'
+import { wrapError, wrapResult, getSupabaseAuthHeaders } from '../config.js'
 
 export function registrarValidarComprobante(server, config) {
   server.tool(
     'validar_comprobante',
-    'Valida un comprobante de pago del cliente. Retorna si es válido y acción recomendada.',
+    'Registra el comprobante de pago enviado por el cliente. Inserta el pago en atlas_payments con status=pending_review para revisión del Director. NO confirma el depósito ni emite voucher.',
     {
-      booking_reference: z.string().describe('Referencia reserva ALN-XXXXX'),
-      monto_reportado: z.number().describe('Monto que el cliente reporta USD'),
-      descripcion: z.string().optional().describe('Texto del cliente sobre el comprobante'),
-      imagen_url: z.string().optional().describe('URL imagen del comprobante'),
+      booking_ref: z.string().describe('Referencia de reserva ALN-XXXXX'),
+      evidence_url: z.string().optional().describe('URL de la foto/comprobante (opcional)'),
+      notes: z.string().optional().describe('Notas del cliente sobre el comprobante (opcional)'),
     },
-    async ({ booking_reference, monto_reportado, descripcion, imagen_url }) => {
+    async ({ booking_ref, evidence_url, notes }) => {
       try {
-        const payload = { booking_reference, monto_reportado }
-        if (descripcion) payload.descripcion = descripcion
-        if (imagen_url) payload.imagen_url = imagen_url
+        const body = { p_booking_ref: booking_ref }
+        if (evidence_url) body.p_evidence_url = evidence_url
+        if (notes) body.p_notes = notes
 
-        const response = await fetch(`${config.n8nWebhookBase}/webhook/validar-comprobante`, {
+        const response = await fetch(`${config.supabaseUrl}/rest/v1/rpc/validar_comprobante`, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(payload)
+          headers: getSupabaseAuthHeaders(config, { write: true }),
+          body: JSON.stringify(body)
         })
-        const result = await response.json()
-        return wrapResult({ status: response.status, ...result })
+        if (!response.ok) {
+          throw new Error(`HTTP ${response.status}: ${await response.text()}`)
+        }
+        const data = await response.json()
+        return wrapResult(data)
       } catch (error) {
         return wrapError(error)
       }

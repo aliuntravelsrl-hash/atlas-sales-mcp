@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { wrapError, wrapResult } from '../config.js'
+import { wrapError, wrapResult, getWebhookHeaders } from '../config.js'
 
 export function registrarAnalisisFinanciero(server, config) {
   server.tool(
@@ -13,7 +13,7 @@ export function registrarAnalisisFinanciero(server, config) {
       try {
         const response = await fetch(`${config.n8nWebhookBase}/webhook/mcp-analisis-financiero`, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: getWebhookHeaders(config),
           body: JSON.stringify({ analysis_description, budget })
         })
         const result = await response.json()

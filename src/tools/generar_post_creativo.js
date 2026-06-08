@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { getSupabaseAuthHeaders, wrapError, wrapResult } from '../config.js'
+import { wrapError, wrapResult, getWebhookHeaders } from '../config.js'
 
 export function registrarGenerarPostCreativo(server, config) {
   server.tool(
@@ -17,7 +17,7 @@ export function registrarGenerarPostCreativo(server, config) {
 
         const response = await fetch(`${config.n8nWebhookBase}/webhook/mcp-generar-post-creativo`, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: getWebhookHeaders(config),
           body: JSON.stringify(payload)
         })
         const result = await response.json()

@@ -21,7 +21,7 @@ export function registerRegistrarLead(server, config) {
       try {
         const response = await fetch(`${config.supabaseUrl}/rest/v1/crm_leads`, {
           method: 'POST',
-          headers: { ...getSupabaseAuthHeaders(config), 'Prefer': 'return=representation' },
+          headers: { ...getSupabaseAuthHeaders(config, { write: true }), 'Prefer': 'return=representation' },
           body: JSON.stringify(params)
         });
         if (!response.ok) {

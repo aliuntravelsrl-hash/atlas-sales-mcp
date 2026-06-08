@@ -1,29 +1,35 @@
 import { z } from 'zod'
-import { wrapError, wrapResult } from '../config.js'
+import { wrapError, wrapResult, getSupabaseAuthHeaders } from '../config.js'
 
 export function registrarRegistrarDeposito(server, config) {
   server.tool(
     'registrar_deposito',
-    'Registra un depósito recibido y emite Estado de Cuenta PDF al cliente. Solo Director debe usar esta tool.',
+    'Confirma un depósito recibido (solo con aprobación del Director). Ejecuta la RPC registrar_deposito en Supabase para actualizar el estado del pago. La emisión del voucher/PDF es un paso SEPARADO posterior (Liberar Voucher).',
     {
-      booking_reference: z.string().describe('Referencia reserva ALN-XXXXX'),
-      monto_deposito: z.number().describe('Monto depósito USD'),
-      email_cliente: z.string().describe('Email del cliente'),
-      metodo_pago: z.string().default('transferencia').describe('transferencia | efectivo | tarjeta'),
-      notas: z.string().optional().describe('Notas del depósito'),
+      booking_ref: z.string().describe('Referencia de reserva ALN-XXXXX'),
+      monto: z.number().positive().describe('Monto del depósito en USD'),
+      metodo: z.enum(['transfer', 'cash', 'card_azul', 'card_paypal']).describe('Método de pago'),
+      notas: z.string().optional().describe('Notas del depósito (opcional)'),
     },
-    async ({ booking_reference, monto_deposito, email_cliente, metodo_pago, notas }) => {
+    async ({ booking_ref, monto, metodo, notas }) => {
       try {
-        const payload = { booking_reference, monto_deposito, email_cliente, metodo_pago }
-        if (notas) payload.notas = notas
+        const body = {
+          p_booking_ref: booking_ref,
+          p_monto: monto,
+          p_metodo: metodo
+        }
+        if (notas) body.p_notas = notas
 
-        const response = await fetch(`${config.n8nWebhookBase}/webhook/registrar-interes`, {
+        const response = await fetch(`${config.supabaseUrl}/rest/v1/rpc/registrar_deposito`, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(payload)
+          headers: getSupabaseAuthHeaders(config, { write: true }),
+          body: JSON.stringify(body)
         })
-        const result = await response.json()
-        return wrapResult({ status: response.status, ...result })
+        if (!response.ok) {
+          throw new Error(`HTTP ${response.status}: ${await response.text()}`)
+        }
+        const data = await response.json()
+        return wrapResult(data)
       } catch (error) {
         return wrapError(error)
       }
