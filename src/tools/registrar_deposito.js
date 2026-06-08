@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { wrapError, wrapResult } from '../config.js'
+import { wrapError, wrapResult, getWebhookHeaders } from '../config.js'
 
 export function registrarRegistrarDeposito(server, config) {
   server.tool(
@@ -17,9 +17,14 @@ export function registrarRegistrarDeposito(server, config) {
         const payload = { booking_reference, monto_deposito, email_cliente, metodo_pago }
         if (notas) payload.notas = notas
 
-        const response = await fetch(`${config.n8nWebhookBase}/webhook/registrar-interes`, {
+        // Path del webhook de depósito configurable vía env.
+        // Default mantiene el path actual de producción para no romper
+        // el flujo existente; ajustar REGISTRAR_DEPOSITO_WEBHOOK_PATH en
+        // EasyPanel cuando exista un workflow dedicado de depósitos.
+        const path = config.registrarDepositoWebhookPath
+        const response = await fetch(`${config.n8nWebhookBase}${path}`, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: getWebhookHeaders(config),
           body: JSON.stringify(payload)
         })
         const result = await response.json()

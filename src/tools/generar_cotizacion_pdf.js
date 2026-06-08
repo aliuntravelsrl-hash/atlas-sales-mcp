@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { getSupabaseAuthHeaders, wrapError, wrapResult } from '../config.js'
+import { wrapError, wrapResult, getWebhookHeaders } from '../config.js'
 
 export function registrarGenerarCotizacionPdf(server, config) {
   server.tool(
@@ -21,7 +21,7 @@ export function registrarGenerarCotizacionPdf(server, config) {
       try {
         const response = await fetch(`${config.n8nWebhookBase}/webhook/aliun-cotizacion`, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: getWebhookHeaders(config),
           body: JSON.stringify({ slug, nombre, email, check_in, check_out, habitacion, regimen, pasajeros, precio_total, moneda })
         })
         const result = await response.json()

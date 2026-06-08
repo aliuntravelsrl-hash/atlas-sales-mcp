@@ -8,7 +8,18 @@ import http from 'http'
 const config = {
   supabaseUrl: process.env.SUPABASE_URL || 'https://oyihiyivdhfxpyiwnmqk.supabase.co',
   supabaseAnonKey: process.env.SUPABASE_ANON_KEY || '',
+  // Service-role key opt-in: solo se usa para escrituras si está presente.
+  supabaseServiceRoleKey: process.env.SUPABASE_SERVICE_ROLE_KEY || '',
   n8nWebhookBase: process.env.N8N_WEBHOOK_BASE || 'https://n8n-n8n.xaruuo.easypanel.host',
+  // Secreto compartido para firmar webhooks a n8n (opt-in).
+  n8nWebhookSecret: process.env.N8N_WEBHOOK_SECRET || '',
+  // Path del webhook de registrar_deposito (configurable).
+  registrarDepositoWebhookPath: process.env.REGISTRAR_DEPOSITO_WEBHOOK_PATH || '/webhook/registrar-interes',
+  // Token de auth del endpoint /mcp (opt-in): si está vacío el endpoint
+  // queda abierto como hoy; si se define, exige header X-MCP-Auth.
+  mcpAuthToken: process.env.MCP_AUTH_TOKEN || '',
+  // TTL de sesiones stateful en ms (default 30 min).
+  sessionTtlMs: parseInt(process.env.SESSION_TTL_MS || '1800000', 10),
   port: parseInt(process.env.PORT || '3000', 10),
 }
 
@@ -80,6 +91,24 @@ function parseBody(req) {
   })
 }
 
+// Auth gate opt-in para /mcp.
+// Si config.mcpAuthToken está vacío → endpoint abierto (comportamiento
+// actual, cero downtime). Si está definido → exige header X-MCP-Auth
+// con el token. Devuelve true si la request está autorizada.
+function isAuthorized(req) {
+  if (!config.mcpAuthToken) return true
+  const provided = req.headers['x-mcp-auth'] || req.headers['authorization']
+  if (!provided) return false
+  // Acepta el token directo o como "Bearer <token>".
+  const token = provided.startsWith('Bearer ') ? provided.slice(7) : provided
+  return token === config.mcpAuthToken
+}
+
+function sendUnauthorized(res, id = null) {
+  res.writeHead(401, { 'Content-Type': 'application/json' })
+  res.end(JSON.stringify({ jsonrpc: '2.0', error: { code: -32001, message: 'Unauthorized: invalid or missing X-MCP-Auth' }, id }))
+}
+
 // Handle stateless requests (no session management).
 // Creates a one-shot server+transport that skips the MCP handshake.
 // The SDK's validateSession is bypassed because sessionIdGenerator is undefined.
@@ -116,6 +145,7 @@ const serverHttp = http.createServer(async (req, res) => {
 
   // SSE stream for GET /mcp (stateful clients only)
   if (req.method === 'GET' && req.url === '/mcp') {
+    if (!isAuthorized(req)) { sendUnauthorized(res); return }
     const sessionId = req.headers['mcp-session-id']
     if (!sessionId || !sessions[sessionId]) {
       res.writeHead(400, { 'Content-Type': 'application/json' })
@@ -136,6 +166,7 @@ const serverHttp = http.createServer(async (req, res) => {
 
   // MCP POST endpoint
   if (req.method === 'POST' && req.url === '/mcp') {
+    if (!isAuthorized(req)) { sendUnauthorized(res); return }
     const sessionId = req.headers['mcp-session-id']
 
     try {
@@ -192,6 +223,7 @@ const serverHttp = http.createServer(async (req, res) => {
 
   // DELETE /mcp — session termination
   if (req.method === 'DELETE' && req.url === '/mcp') {
+    if (!isAuthorized(req)) { sendUnauthorized(res); return }
     const sessionId = req.headers['mcp-session-id']
     if (!sessionId || !sessions[sessionId]) {
       res.writeHead(400, { 'Content-Type': 'application/json' })
@@ -214,11 +246,11 @@ const serverHttp = http.createServer(async (req, res) => {
   res.end('Not found')
 })
 
-// Session cleanup: expire stateful sessions idle > 5 minutes
+// Session cleanup: expire stateful sessions idle > SESSION_TTL_MS (default 30 min)
 setInterval(() => {
   const now = Date.now()
   for (const sid in sessions) {
-    if (now - sessions[sid].lastSeen > 300_000) {
+    if (now - sessions[sid].lastSeen > config.sessionTtlMs) {
       console.log(`[MCP] Session expired: ${sid}`)
       try { sessions[sid].transport.close() } catch {}
       delete sessions[sid]
