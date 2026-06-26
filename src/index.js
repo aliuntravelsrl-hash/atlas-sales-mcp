@@ -43,6 +43,7 @@ import { registerCrearDeal } from './tools/crear_deal.js'
 import { registerConsultarPipeline } from './tools/consultar_pipeline.js'
 // Mission Control / Analytics Tools
 import { registrarStalePayments } from './tools/stale_payments.js'
+import { registrarGenerarExcursionDoc } from './tools/generar_excursion_doc.js'
 
 // Factory: creates a fresh McpServer with all tools registered
 function getServer() {
@@ -74,6 +75,7 @@ function getServer() {
 
   // Mission Control / Analytics Tools
   registrarStalePayments(server, config)
+  registrarGenerarExcursionDoc(server, config)
 
   return server
 }
